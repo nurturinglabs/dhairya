@@ -1,12 +1,3 @@
 {
-  "buildCommand": "mkdir -p public/audio/survivors public/audio/celebrities && cp stories/audio/survivors/*.wav public/audio/survivors/ && cp stories/audio/celebrities/*.wav public/audio/celebrities/",
-  "functions": {
-    "api/index.py": {
-      "runtime": "@vercel/python",
-      "includeFiles": "backend/**,voice-agent/**,stories/survivors/**,stories/celebrities/**"
-    }
-  },
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" }
-  ]
+  "buildCommand": "mkdir -p public/audio/survivors public/audio/celebrities && cp stories/audio/survivors/*.wav public/audio/survivors/ && cp stories/audio/celebrities/*.wav public/audio/celebrities/"
 }

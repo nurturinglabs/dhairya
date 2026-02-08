@@ -1,0 +1,10 @@
+[project]
+name = "dhairya"
+version = "2.0.0"
+requires-python = ">=3.9"
+
+[project.scripts]
+app = "backend.main:app"
+
+[tool.vercel.scripts]
+build = "mkdir -p public/audio/survivors public/audio/celebrities && cp stories/audio/survivors/*.wav public/audio/survivors/ && cp stories/audio/celebrities/*.wav public/audio/celebrities/"
