@@ -13,6 +13,7 @@ import sys
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 # Ensure voice-agent modules are importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "voice-agent"))
@@ -41,9 +42,9 @@ app.include_router(stories_router)
 app.include_router(sessions_router)
 
 
-@app.get("/", response_model=HealthResponse)
-async def health_check():
-    return HealthResponse(status="ok", service="dhairya-2.0")
+@app.get("/")
+async def root():
+    return RedirectResponse("/index.html")
 
 
 @app.get("/api/health", response_model=HealthResponse)
