@@ -337,11 +337,20 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [storyTab, setStoryTab] = useState("survivor"); // "survivor" or "celebrity"
   const [celebStories, setCelebStories] = useState([]);
+  const [companionState, setCompanionState] = useState("ready"); // ready|recording|processing|playing|error
+  const [courageStep, setCourageStep] = useState("intro"); // intro|recording|transcribing|reviewing|submitting|done
+  const [courageTranscript, setCourageTranscript] = useState("");
+  const [courageAudioBlob, setCourageAudioBlob] = useState(null);
+  const [courageTimer, setCourageTimer] = useState(0);
+  const [courageMeta, setCourageMeta] = useState({ name: "", relation: "", cancer_type: "" });
+  const [communityStories, setCommunityStories] = useState([]);
   const chatEndRef = useRef(null);
   const audioRef = useRef(null);
   const ttsAudioRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const recordingTimerRef = useRef(null);
+  const courageTimerRef = useRef(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -422,16 +431,21 @@ function App() {
 
     if (m === "story") {
       await loadStories();
-    } else {
-      const sid = await createSession(m === "talk" ? "conversation" : "courage");
+    } else if (m === "talk") {
+      setCompanionState("ready");
+      const sid = await createSession("conversation");
       if (sid) {
         setMessages([{
           role: "assistant",
-          text: m === "courage"
-            ? "ನಮಸ್ಕಾರ. ನಾನು ಧೈರ್ಯ. ಇವತ್ತು ನಿಮಗೆ ಧೈರ್ಯದ ಮಾತು ಹೇಳ್ತೀನಿ. ಏನಾದರೂ ಹೇಳಿ, ಅಥವಾ 'ಧೈರ್ಯ ಕೊಡಿ' ಅಂತ ಹೇಳಿ."
-            : "ನಮಸ್ಕಾರ. ನಾನು ಧೈರ್ಯ. ನಿಮ್ಮ ಜೊತೆಗಾರ್ತಿ. ನಿಮ್ಮ ಮನಸ್ಸಿನಲ್ಲಿ ಏನಿದೆ ಹೇಳಿ. ನಾನು ಕೇಳ್ತೀನಿ.",
+          text: "\u0CA8\u0CAE\u0CB8\u0CCD\u0C95\u0CBE\u0CB0. \u0CA8\u0CBE\u0CA8\u0CC1 \u0CA7\u0CC8\u0CB0\u0CCD\u0CAF. \u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0CAE\u0CA8\u0CB8\u0CCD\u0CB8\u0CBF\u0CA8\u0CB2\u0CCD\u0CB2\u0CBF \u0C8F\u0CA8\u0CBF\u0CA6\u0CCD\u0CA6\u0CB0\u0CC6 \u0CB9\u0CC7\u0CB3\u0CBF. \u0CA8\u0CBE\u0CA8\u0CC1 \u0C87\u0CB2\u0CCD\u0CB2\u0CC7 \u0C87\u0CA6\u0CCD\u0CA6\u0CC0\u0CA8\u0CBF, \u0CA4\u0CBE\u0CB3\u0CCD\u0CAE\u0CC6\u0CAF\u0CBF\u0C82\u0CA6 \u0C95\u0CC7\u0CB3\u0CCD\u0CA4\u0CC0\u0CA8\u0CBF.",
         }]);
       }
+    } else if (m === "courage") {
+      setCourageStep("intro");
+      setCourageTranscript("");
+      setCourageAudioBlob(null);
+      setCourageTimer(0);
+      setCourageMeta({ name: "", relation: "", cancer_type: "" });
     }
   }
 
@@ -508,6 +522,188 @@ function App() {
       setMessages(prev => [...prev, { role: "assistant", text: "ಕ್ಷಮಿಸಿ, ಧ್ವನಿ ಕಳುಹಿಸಲು ಆಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ." }]);
     }
     setLoading(false);
+  }
+
+  // ─── Companion (Talk Mode) voice handling ─────────────────────
+  function handleCompanionMic() {
+    if (companionState === "recording") {
+      stopCompanionRecording();
+    } else if (companionState === "ready") {
+      startCompanionRecording();
+    }
+  }
+
+  async function startCompanionRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        clearTimeout(recordingTimerRef.current);
+        setCompanionState("processing");
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+        await sendCompanionVoice(audioBlob);
+      };
+
+      mediaRecorder.start();
+      setCompanionState("recording");
+
+      // Auto-stop after 30 seconds
+      recordingTimerRef.current = setTimeout(() => {
+        stopCompanionRecording();
+      }, 30000);
+    } catch (err) {
+      console.error("Mic access denied:", err);
+      setCompanionState("error");
+      setTimeout(() => setCompanionState("ready"), 2000);
+    }
+  }
+
+  function stopCompanionRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+  }
+
+  async function sendCompanionVoice(audioBlob) {
+    if (!sessionId) return;
+    const formData = new FormData();
+    formData.append("session_id", sessionId);
+    formData.append("audio", audioBlob, "recording.webm");
+
+    try {
+      const res = await fetch(`${API_BASE}/api/sessions/chat-voice`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.user_text) {
+        setMessages(prev => [...prev, { role: "user", text: data.user_text }]);
+      }
+      setMessages(prev => [...prev, { role: "assistant", text: data.response_text }]);
+
+      if (data.audio_base64 && ttsAudioRef.current) {
+        setCompanionState("playing");
+        ttsAudioRef.current.src = `data:audio/wav;base64,${data.audio_base64}`;
+        ttsAudioRef.current.onended = () => setCompanionState("ready");
+        ttsAudioRef.current.play().catch(() => setCompanionState("ready"));
+      } else {
+        setCompanionState("ready");
+      }
+    } catch (err) {
+      setMessages(prev => [...prev, { role: "assistant", text: "\u0C95\u0CCD\u0CB7\u0CAE\u0CBF\u0CB8\u0CBF, \u0C8F\u0CA8\u0CCB \u0CA4\u0CCA\u0C82\u0CA6\u0CB0\u0CC6 \u0C86\u0CAF\u0CCD\u0CA4\u0CC1. \u0CAE\u0CA4\u0CCD\u0CA4\u0CC6 \u0CAA\u0CCD\u0CB0\u0CAF\u0CA4\u0CCD\u0CA8\u0CBF\u0CB8\u0CBF." }]);
+      setCompanionState("error");
+      setTimeout(() => setCompanionState("ready"), 2000);
+    }
+  }
+
+  // ─── Courage (Community Stories) recording ───────────────────
+  async function startCourageRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      setCourageTimer(0);
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        clearInterval(courageTimerRef.current);
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+        setCourageAudioBlob(audioBlob);
+        setCourageStep("transcribing");
+
+        // Transcribe the recording
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "story.webm");
+        try {
+          const res = await fetch(`${API_BASE}/api/community/transcribe`, {
+            method: "POST",
+            body: formData,
+          });
+          const data = await res.json();
+          setCourageTranscript(data.transcript || "");
+          setCourageStep("reviewing");
+        } catch (err) {
+          setCourageTranscript("");
+          setCourageStep("reviewing");
+        }
+      };
+
+      mediaRecorder.start();
+      setCourageStep("recording");
+
+      // Timer
+      courageTimerRef.current = setInterval(() => {
+        setCourageTimer(prev => {
+          if (prev >= 29) {
+            // Auto-stop at 30 seconds
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+              mediaRecorderRef.current.stop();
+            }
+            return 30;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      console.error("Mic access denied:", err);
+    }
+  }
+
+  function stopCourageRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+  }
+
+  async function submitCourageStory() {
+    setCourageStep("submitting");
+    const formData = new FormData();
+    formData.append("transcript", courageTranscript);
+    formData.append("name", courageMeta.name || "\u0C85\u0CA8\u0CBE\u0CAE\u0CBF\u0C95");
+    formData.append("relation", courageMeta.relation);
+    formData.append("cancer_type", courageMeta.cancer_type);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/community/submit`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCourageStep("done");
+      }
+    } catch (err) {
+      setCourageStep("reviewing"); // Go back to review on error
+    }
+  }
+
+  async function loadCommunityStories() {
+    try {
+      const res = await fetch(`${API_BASE}/api/community`);
+      const data = await res.json();
+      setCommunityStories(data);
+    } catch (err) {
+      setCommunityStories([]);
+    }
+  }
+
+  function formatTimer(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
   }
 
   async function sendMessage(e) {
@@ -754,6 +950,13 @@ function App() {
                   ಸ್ಫೂರ್ತಿ ಕಥೆ
                   <span className="tab-sub">Celebrity Stories</span>
                 </button>
+                <button
+                  className={`story-tab ${storyTab === "community" ? "active" : ""}`}
+                  onClick={() => { setStoryTab("community"); loadCommunityStories(); }}
+                >
+                  ಸಮುದಾಯದ ಕಥೆ
+                  <span className="tab-sub">Community Stories</span>
+                </button>
               </div>
 
               {storyTab === "survivor" && (
@@ -777,39 +980,292 @@ function App() {
                   </div>
                 </React.Fragment>
               )}
+
+              {storyTab === "community" && (
+                <React.Fragment>
+                  <p className="stories-disclaimer">{"\u0CB8\u0CAE\u0CC1\u0CA6\u0CBE\u0CAF\u0CA6\u0CB5\u0CB0 \u0C85\u0CA8\u0CC1\u0CAD\u0CB5\u0C97\u0CB3\u0CC1"} &middot; Stories shared by our community</p>
+                  {communityStories.length === 0 ? (
+                    <div className="community-empty">
+                      <p>{"\u0C87\u0CA8\u0CCD\u0CA8\u0CC2 \u0CAF\u0CBE\u0CB0\u0CC2 \u0C95\u0CA5\u0CC6 \u0CB9\u0C82\u0C9A\u0CBF\u0C95\u0CCA\u0C82\u0CA1\u0CBF\u0CB2\u0CCD\u0CB2."}</p>
+                      <button className="community-share-btn" onClick={() => selectMode("courage")}>
+                        {"\uD83C\uDF99\uFE0F \u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C95\u0CA5\u0CC6 \u0CB9\u0CC7\u0CB3\u0CBF"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="story-list">
+                      {communityStories.map((cs) => (
+                        <div
+                          key={cs.id}
+                          className="story-card community-card"
+                          onClick={() => {
+                            if (cs.has_audio && audioRef.current) {
+                              audioRef.current.src = `${API_BASE}/api/community/${cs.id}/audio`;
+                              audioRef.current.play();
+                            }
+                          }}
+                        >
+                          <div className="character-avatar" style={{width: 52, height: 52}}>
+                            <svg width="52" height="52" viewBox="0 0 64 64">
+                              <circle cx="32" cy="32" r="30" fill="#E8A87C" opacity="0.3"/>
+                              <circle cx="32" cy="24" r="10" fill="white" opacity="0.7"/>
+                              <ellipse cx="32" cy="48" rx="16" ry="12" fill="white" opacity="0.5"/>
+                            </svg>
+                          </div>
+                          <div className="story-info">
+                            <div className="story-name">{cs.name}</div>
+                            <div className="story-title-line">{cs.transcript_preview}</div>
+                            <div className="story-meta">
+                              {cs.relation && <span className="meta-tag">{cs.relation}</span>}
+                              {cs.cancer_type && (
+                                <React.Fragment>
+                                  <span className="meta-dot">&middot;</span>
+                                  <span>{cs.cancer_type}</span>
+                                </React.Fragment>
+                              )}
+                            </div>
+                          </div>
+                          <div className="story-play-btn">
+                            <svg width="20" height="20" viewBox="0 0 20 20">
+                              <polygon points="5,3 17,10 5,17" fill="#D4956A"/>
+                            </svg>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </React.Fragment>
+              )}
             </React.Fragment>
           )}
         </div>
       )}
 
-      {/* ── Chat Mode (Talk / Courage) — Development in progress ── */}
-      {(mode === "talk" || mode === "courage") && (
-        <div className="chat-view fade-in" style={{alignItems: "center", justifyContent: "center", minHeight: "400px"}}>
-          <div style={{textAlign: "center", padding: "48px 24px"}}>
-            <div style={{fontSize: "3rem", marginBottom: "16px"}}>
-              {mode === "courage" ? "\uD83D\uDD25" : "\uD83C\uDF99\uFE0F"}
-            </div>
-            <h3 className="chat-mode-title" style={{marginBottom: "8px"}}>
-              {mode === "courage" ? "ನಿಮ್ಮ ಕಥೆ ಹೇಳಿ" : "ನಿಮ್ಮ ಮಾತನ್ನು ಕೇಳಲು ಧೈರ್ಯ ಯಾವಾಗಲೂ ready"}
-            </h3>
-            <p style={{fontSize: "1.1rem", color: "var(--primary-dark)", fontWeight: 600, marginBottom: "12px"}}>
-              Development in progress
-            </p>
-            <p style={{fontSize: "0.88rem", color: "var(--text-muted)", lineHeight: 1.6}}>
-              ಈ ವೈಶಿಷ್ಟ್ಯವನ್ನು ಶೀಘ್ರದಲ್ಲೇ ತರಲಾಗುವುದು. ದಯವಿಟ್ಟು ಕಾಯಿರಿ.
+      {/* ── Talk Mode — Voice Companion ── */}
+      {mode === "talk" && (
+        <div className="companion-view fade-in">
+          {/* Conversation area */}
+          <div className="companion-messages">
+            {messages.map((msg, i) => (
+              <ChatMessage key={i} role={msg.role} text={msg.text} />
+            ))}
+            {companionState === "processing" && (
+              <div className="chat-msg assistant">
+                <div className="chat-avatar">
+                  <svg width="32" height="32" viewBox="0 0 32 32">
+                    <circle cx="16" cy="16" r="15" fill="#D4956A" opacity="0.2"/>
+                    <text x="16" y="21" textAnchor="middle" fontSize="14" fill="#D4956A">&#x0CA7;</text>
+                  </svg>
+                </div>
+                <div className="chat-bubble">
+                  <div className="typing-dots">
+                    <span className="dot"></span>
+                    <span className="dot"></span>
+                    <span className="dot"></span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Mic button */}
+          <div className="companion-controls">
+            <button
+              className={`companion-mic-btn ${companionState}`}
+              onClick={handleCompanionMic}
+              disabled={companionState === "processing" || companionState === "playing"}
+            >
+              {companionState === "recording" ? (
+                <svg width="32" height="32" viewBox="0 0 32 32">
+                  <rect x="8" y="8" width="6" height="16" rx="2" fill="white"/>
+                  <rect x="18" y="8" width="6" height="16" rx="2" fill="white"/>
+                </svg>
+              ) : companionState === "processing" ? (
+                <div className="mic-spinner"></div>
+              ) : companionState === "playing" ? (
+                <svg width="32" height="32" viewBox="0 0 32 32">
+                  <path d="M8 13v6h4l5 5V8l-5 5H8z" fill="white"/>
+                  <path d="M22 10.5c1.3 1.3 2 3 2 5.5s-.7 4.2-2 5.5" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round"/>
+                  <path d="M25 8c2 2 3 4.7 3 8s-1 6-3 8" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round" opacity="0.6"/>
+                </svg>
+              ) : (
+                <svg width="32" height="32" viewBox="0 0 32 32">
+                  <path d="M16 4c-2 0-4 1.8-4 4v8c0 2.2 1.8 4 4 4s4-1.8 4-4V8c0-2.2-2-4-4-4z" fill="white"/>
+                  <path d="M24 15c0 4.4-3.6 8-8 8s-8-3.6-8-8" stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+                  <line x1="16" y1="23" x2="16" y2="28" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+                </svg>
+              )}
+            </button>
+            <p className="companion-mic-label">
+              {companionState === "ready" && "\uD83C\uDF99\uFE0F \u0CAE\u0CBE\u0CA4\u0CBE\u0CA1\u0CB2\u0CC1 \u0C92\u0CA4\u0CCD\u0CA4\u0CBF"}
+              {companionState === "recording" && "\uD83D\uDD34 \u0C95\u0CC7\u0CB3\u0CCD\u0CA4\u0CBF\u0CA6\u0CCD\u0CA6\u0CC7\u0CA8\u0CC1..."}
+              {companionState === "processing" && "\uD83D\uDCAD \u0CA7\u0CC8\u0CB0\u0CCD\u0CAF \u0CAF\u0CCB\u0C9A\u0CBF\u0CB8\u0CCD\u0CA4\u0CBF\u0CA6\u0CCD\u0CA6\u0CBE\u0CB3\u0CC6..."}
+              {companionState === "playing" && "\uD83D\uDD0A \u0CA7\u0CC8\u0CB0\u0CCD\u0CAF \u0CAE\u0CBE\u0CA4\u0CBE\u0CA1\u0CCD\u0CA4\u0CBF\u0CA6\u0CCD\u0CA6\u0CBE\u0CB3\u0CC6..."}
+              {companionState === "error" && "\u26A0\uFE0F \u0CAE\u0CA4\u0CCD\u0CA4\u0CC6 \u0CAA\u0CCD\u0CB0\u0CAF\u0CA4\u0CCD\u0CA8\u0CBF\u0CB8\u0CBF"}
             </p>
           </div>
+
+          {/* Text input fallback */}
+          <form className="companion-text-input" onSubmit={sendMessage}>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={"\u0C95\u0CA8\u0CCD\u0CA8\u0CA1\u0CA6\u0CB2\u0CCD\u0CB2\u0CBF \u0C9F\u0CC8\u0CAA\u0CCD \u0CAE\u0CBE\u0CA1\u0CBF..."}
+              disabled={loading || companionState === "processing"}
+            />
+            <button type="submit" disabled={!input.trim() || loading}>
+              <svg width="18" height="18" viewBox="0 0 18 18">
+                <path d="M2 16l14-7L2 2v5.5l10 1.5-10 1.5z" fill="white"/>
+              </svg>
+            </button>
+          </form>
+
+          <p className="companion-disclaimer">
+            {"\u26A0\uFE0F \u0C87\u0CA6\u0CC1 AI \u0C9C\u0CCA\u0CA4\u0CC6\u0C97\u0CBE\u0CB0\u0CCD\u0CA4\u0CBF \u00B7 \u0CB5\u0CC8\u0CA6\u0CCD\u0CAF\u0C95\u0CC0\u0CAF \u0CB8\u0CB2\u0CB9\u0CC6 \u0C85\u0CB2\u0CCD\u0CB2 \u00B7 Built with Sarvam AI Bulbul V3"}
+          </p>
+        </div>
+      )}
+
+      {/* ── Courage Mode — Community Stories ── */}
+      {mode === "courage" && (
+        <div className="courage-view fade-in">
+          {/* Step 1: Introduction */}
+          {courageStep === "intro" && (
+            <div className="courage-intro">
+              <div className="courage-intro-icon">{"\uD83C\uDF99\uFE0F"}</div>
+              <h3 className="courage-title">{"\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C95\u0CA5\u0CC6 \u0C87\u0CA8\u0CCD\u0CA8\u0CCA\u0CAC\u0CCD\u0CAC\u0CB0 \u0CA7\u0CC8\u0CB0\u0CCD\u0CAF \u0C86\u0C97\u0CAC\u0CB9\u0CC1\u0CA6\u0CC1."}</h3>
+              <p className="courage-subtitle">Your story can become someone else's courage.</p>
+
+              <div className="courage-prompts">
+                <p className="courage-prompt-title">{"\u0C8F\u0CA8\u0CC1 \u0CB9\u0CC7\u0CB3\u0CAC\u0CB9\u0CC1\u0CA6\u0CC1:"}</p>
+                <ul>
+                  <li>{"\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C95\u0CCD\u0CAF\u0CBE\u0CA8\u0CCD\u0CB8\u0CB0\u0CCD \u0C85\u0CA8\u0CC1\u0CAD\u0CB5 \u0CB9\u0CC7\u0C97\u0CBF\u0CA4\u0CCD\u0CA4\u0CC1?"}</li>
+                  <li>{"\u0CAF\u0CBE\u0CB5 \u0C95\u0CCD\u0CB7\u0CA3 \u0CA8\u0CBF\u0CAE\u0C97\u0CC6 \u0CA7\u0CC8\u0CB0\u0CCD\u0CAF \u0C95\u0CCA\u0C9F\u0CCD\u0C9F\u0CBF\u0CA4\u0CC1?"}</li>
+                  <li>{"\u0C87\u0CA8\u0CCD\u0CA8\u0CCA\u0CAC\u0CCD\u0CAC \u0CB0\u0CCB\u0C97\u0CBF\u0C97\u0CC6 \u0CA8\u0CC0\u0CB5\u0CC1 \u0C8F\u0CA8\u0CC1 \u0CB9\u0CC7\u0CB3\u0CCD\u0CA4\u0CC0\u0CB0\u0CBF?"}</li>
+                </ul>
+              </div>
+
+              <div className="courage-meta-form">
+                <input
+                  type="text"
+                  placeholder={"\u0CB9\u0CC6\u0CB8\u0CB0\u0CC1 (\u0C85\u0CA5\u0CB5\u0CBE \u0C85\u0CA8\u0CBE\u0CAE\u0CBF\u0C95)"}
+                  value={courageMeta.name}
+                  onChange={(e) => setCourageMeta(prev => ({...prev, name: e.target.value}))}
+                />
+                <select
+                  value={courageMeta.relation}
+                  onChange={(e) => setCourageMeta(prev => ({...prev, relation: e.target.value}))}
+                >
+                  <option value="">{"\u0CA8\u0CBE\u0CA8\u0CC1..."}</option>
+                  <option value="patient">{"\u0C95\u0CCD\u0CAF\u0CBE\u0CA8\u0CCD\u0CB8\u0CB0\u0CCD \u0CB0\u0CCB\u0C97\u0CBF"}</option>
+                  <option value="survivor">{"\u0C95\u0CCD\u0CAF\u0CBE\u0CA8\u0CCD\u0CB8\u0CB0\u0CCD \u0C97\u0CC6\u0CA6\u0CCD\u0CA6\u0CB5\u0CB0\u0CC1"}</option>
+                  <option value="family">{"\u0C95\u0CC1\u0C9F\u0CC1\u0C82\u0CAC\u0CA6\u0CB5\u0CB0\u0CC1"}</option>
+                </select>
+              </div>
+
+              <button className="courage-record-btn" onClick={startCourageRecording}>
+                <svg width="24" height="24" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="6" fill="white"/>
+                </svg>
+                {"\u0C95\u0CA5\u0CC6 \u0CB9\u0CC7\u0CB3\u0CB2\u0CC1 \u0C92\u0CA4\u0CCD\u0CA4\u0CBF"}
+              </button>
+              <p className="courage-hint">{"\u0C97\u0CB0\u0CBF\u0CB7\u0CCD\u0C9F 30 \u0CB8\u0CC6\u0C95\u0CC6\u0C82\u0CA1\u0CCD"}</p>
+            </div>
+          )}
+
+          {/* Step 2: Recording */}
+          {courageStep === "recording" && (
+            <div className="courage-recording">
+              <div className="courage-rec-indicator">
+                <div className="courage-rec-ring"></div>
+                <div className="courage-rec-dot"></div>
+              </div>
+              <p className="courage-timer">{formatTimer(courageTimer)} / 0:30</p>
+              <p className="courage-rec-label">{"\uD83D\uDD34 \u0CB9\u0CC7\u0CB3\u0CCD\u0CA4\u0CBF\u0CA6\u0CCD\u0CA6\u0CC0\u0CB0\u0CBF..."}</p>
+              <button className="courage-stop-btn" onClick={stopCourageRecording}>
+                <svg width="20" height="20" viewBox="0 0 20 20">
+                  <rect x="4" y="4" width="12" height="12" rx="2" fill="white"/>
+                </svg>
+                {"\u0CA8\u0CBF\u0CB2\u0CCD\u0CB2\u0CBF\u0CB8\u0CBF"}
+              </button>
+            </div>
+          )}
+
+          {/* Step 2.5: Transcribing */}
+          {courageStep === "transcribing" && (
+            <div className="courage-transcribing">
+              <div className="mic-spinner large"></div>
+              <p>{"\uD83D\uDCAD \u0CAC\u0CB0\u0CC6\u0CAF\u0CC1\u0CA4\u0CCD\u0CA4\u0CBF\u0CA6\u0CCD\u0CA6\u0CC7\u0CA8\u0CC1..."}</p>
+            </div>
+          )}
+
+          {/* Step 3: Review */}
+          {courageStep === "reviewing" && (
+            <div className="courage-review">
+              <h4>{"\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C95\u0CA5\u0CC6"}</h4>
+
+              {courageAudioBlob && (
+                <audio controls src={URL.createObjectURL(courageAudioBlob)} style={{width: "100%", marginBottom: "12px"}} />
+              )}
+
+              <div className="courage-transcript-box">
+                <p className="courage-transcript-label">{"\u0C9F\u0CCD\u0CB0\u0CBE\u0CA8\u0CCD\u0CB8\u0CCD\u0C95\u0CCD\u0CB0\u0CBF\u0CAA\u0CCD\u0C9F\u0CCD:"}</p>
+                <textarea
+                  value={courageTranscript}
+                  onChange={(e) => setCourageTranscript(e.target.value)}
+                  rows={4}
+                  placeholder={"\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C95\u0CA5\u0CC6 \u0C87\u0CB2\u0CCD\u0CB2\u0CBF \u0C95\u0CBE\u0CA3\u0CBF\u0CB8\u0CC1\u0CA4\u0CCD\u0CA4\u0CA6\u0CC6..."}
+                />
+              </div>
+
+              <div className="courage-review-buttons">
+                <button className="courage-approve-btn" onClick={submitCourageStory} disabled={!courageTranscript.trim()}>
+                  {"\u2714 \u0C92\u0CAA\u0CCD\u0CAA\u0CBF\u0C97\u0CC6"}
+                </button>
+                <button className="courage-redo-btn" onClick={() => { setCourageStep("intro"); setCourageTranscript(""); setCourageAudioBlob(null); }}>
+                  {"\uD83D\uDD04 \u0CAE\u0CA4\u0CCD\u0CA4\u0CC6 \u0CB9\u0CC7\u0CB3\u0CBF"}
+                </button>
+                <button className="courage-cancel-btn" onClick={goHome}>
+                  {"\u2716 \u0CB0\u0CA6\u0CCD\u0CA6\u0CC1"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Submitting */}
+          {courageStep === "submitting" && (
+            <div className="courage-transcribing">
+              <div className="mic-spinner large"></div>
+              <p>{"\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C95\u0CA5\u0CC6 \u0CB8\u0CC7\u0CB5\u0CCD \u0C86\u0C97\u0CCD\u0CA4\u0CBF\u0CA6\u0CC6..."}</p>
+            </div>
+          )}
+
+          {/* Step 5: Done */}
+          {courageStep === "done" && (
+            <div className="courage-done">
+              <div className="courage-done-icon">{"\uD83D\uDE4F"}</div>
+              <h3>{"\u0CA7\u0CA8\u0CCD\u0CAF\u0CB5\u0CBE\u0CA6\u0C97\u0CB3\u0CC1."}</h3>
+              <p>{"\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C95\u0CA5\u0CC6 \u0CB8\u0CC7\u0CB5\u0CCD \u0C86\u0C97\u0CBF\u0CA6\u0CC6."}</p>
+              <p className="courage-done-sub">{"\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0CA7\u0CCC\u0CA8\u0CBF \u0C87\u0CA8\u0CCD\u0CA8\u0CCA\u0CAC\u0CCD\u0CAC\u0CB0 \u0C95\u0CA4\u0CCD\u0CA4\u0CB2\u0CC6\u0CAF \u0CB0\u0CBE\u0CA4\u0CCD\u0CB0\u0CBF\u0CAF\u0CB2\u0CCD\u0CB2\u0CBF \u0CA6\u0CC0\u0CAA \u0C86\u0C97\u0CC1\u0CA4\u0CCD\u0CA4\u0CC6."}</p>
+              <button className="courage-home-btn" onClick={goHome}>
+                {"\u2190 \u0CB9\u0CBF\u0C82\u0CA6\u0CC6 \u0CB9\u0CCB\u0C97\u0CBF"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Footer ── */}
       <footer className="footer">
         <p>
-          Powered by <a href="https://www.sarvam.ai" target="_blank" rel="noopener">Sarvam AI</a>
+          {"\u0C87\u0CA6\u0CC1 AI \u0C9C\u0CCA\u0CA4\u0CC6\u0C97\u0CBE\u0CB0\u0CCD\u0CA4\u0CBF"}
           <span className="footer-sep">&middot;</span>
-          No medical advice
+          {"\u0CB5\u0CC8\u0CA6\u0CCD\u0CAF\u0C95\u0CC0\u0CAF \u0CB8\u0CB2\u0CB9\u0CC6 \u0C85\u0CB2\u0CCD\u0CB2"}
           <span className="footer-sep">&middot;</span>
           Anonymous &amp; private
+          <span className="footer-sep">&middot;</span>
+          Made with {"\u2764\uFE0F"} using <a href="https://www.sarvam.ai" target="_blank" rel="noopener">Sarvam AI</a> Bulbul V3
         </p>
       </footer>
     </div>

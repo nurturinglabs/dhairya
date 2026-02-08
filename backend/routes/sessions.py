@@ -21,8 +21,6 @@ from config import (
     LANGUAGE_CODE,
     SPEAKERS,
     DEFAULT_TTS_PACE,
-    DEFAULT_TTS_PITCH,
-    DEFAULT_TTS_LOUDNESS,
 )
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -40,16 +38,14 @@ def _get_client():
 
 
 def _synthesize_response(client, text: str) -> str | None:
-    """Convert response text to speech, return base64-encoded audio."""
+    """Convert response text to speech using Bulbul V3, return base64-encoded audio."""
     try:
         response = client.text_to_speech.convert(
-            text=text[:500],  # Limit to avoid TTS truncation
+            text=text[:900],
             target_language_code=LANGUAGE_CODE,
             model=TTS_MODEL,
             speaker=SPEAKERS["female"],
-            pitch=DEFAULT_TTS_PITCH,
             pace=DEFAULT_TTS_PACE,
-            loudness=DEFAULT_TTS_LOUDNESS,
             enable_preprocessing=True,
         )
         if hasattr(response, "audios") and response.audios:

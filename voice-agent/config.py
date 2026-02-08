@@ -15,18 +15,18 @@ LIVEKIT_URL = os.getenv("LIVEKIT_URL", "")
 # --- Sarvam model IDs ---
 STT_MODEL = "saarika:v2.5"
 CHAT_MODEL = "sarvam-m"
-TTS_MODEL = "bulbul:v2"
-TTS_MODEL_V3 = "bulbul:v3"  # Used for celebrity narration (shubh/kavya speakers)
+TTS_MODEL = "bulbul:v3"       # Bulbul V3 for all runtime TTS (#TheMicIsYours contest)
+TTS_MODEL_V3 = "bulbul:v3"    # Kept for backward compat with generate_audio.py
 TRANSLATE_MODEL = "saaras:v2"
 
 # --- Language ---
 LANGUAGE_CODE = "kn-IN"
 
-# --- TTS speaker configs per story ---
-# Female stories use "anushka", male stories use "karun"
+# --- TTS speakers (Bulbul V3) ---
+# V3 speakers: kavya (female), shubh (male)
 SPEAKERS = {
-    "female": "anushka",
-    "male": "karun",
+    "female": "kavya",
+    "male": "shubh",
 }
 
 # Per-story voice direction — Bulbul v3 with shubh (male) / kavya (female)
