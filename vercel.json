@@ -1,16 +1,12 @@
 {
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": "backend/**,voice-agent/**,stories/survivors/**,stories/celebrities/**"
-      }
+  "buildCommand": "mkdir -p public/audio/survivors public/audio/celebrities && cp stories/audio/survivors/*.wav public/audio/survivors/ && cp stories/audio/celebrities/*.wav public/audio/celebrities/",
+  "functions": {
+    "api/index.py": {
+      "runtime": "@vercel/python",
+      "includeFiles": "backend/**,voice-agent/**,stories/survivors/**,stories/celebrities/**"
     }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "api/index.py" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "public/$1" }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" }
   ]
 }
