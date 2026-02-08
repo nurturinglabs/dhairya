@@ -12,5 +12,3 @@ dependencies = [
     "aiofiles>=23.0.0",
 ]
 
-[tool.vercel.scripts]
-build = "mkdir -p public/audio/survivors public/audio/celebrities && cp stories/audio/survivors/*.wav public/audio/survivors/ && cp stories/audio/celebrities/*.wav public/audio/celebrities/"

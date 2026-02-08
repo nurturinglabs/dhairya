@@ -533,11 +533,7 @@ function App() {
   }
 
   function getAudioUrl(story) {
-    if (API_BASE) {
-      return `${API_BASE}/api/stories/${story.category}/${story.number}/audio`;
-    }
-    const dir = story.category === "celebrity" ? "celebrities" : "survivors";
-    return `/audio/${dir}/${story.id}.wav`;
+    return `${API_BASE}/api/stories/${story.category}/${story.number}/audio`;
   }
 
   function playStory(story) {
