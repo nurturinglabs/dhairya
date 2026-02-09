@@ -32,16 +32,16 @@ SPEAKERS = {
 # Per-story voice direction — Bulbul v3 with shubh (male) / kavya (female)
 # Survivors: first-person, emotional narration
 STORY_VOICE = {
-    "story_01_meena":       {"speaker": "kavya", "pace": 0.85, "model": "bulbul:v3"},
-    "story_02_raju":        {"speaker": "shubh", "pace": 0.80, "model": "bulbul:v3"},
-    "story_03_priya":       {"speaker": "kavya", "pace": 1.00, "model": "bulbul:v3"},
-    "story_04_shankarappa": {"speaker": "shubh", "pace": 0.75, "model": "bulbul:v3"},
-    "story_05_lakshmi":     {"speaker": "kavya", "pace": 0.85, "model": "bulbul:v3"},
-    "story_06_arun":        {"speaker": "shubh", "pace": 0.90, "model": "bulbul:v3"},
-    "story_07_saraswati":   {"speaker": "kavya", "pace": 0.85, "model": "bulbul:v3"},
-    "story_08_vinay":       {"speaker": "shubh", "pace": 0.95, "model": "bulbul:v3"},
-    "story_09_fatima":      {"speaker": "kavya", "pace": 0.85, "model": "bulbul:v3"},
-    "story_10_mahesh":      {"speaker": "shubh", "pace": 0.80, "model": "bulbul:v3"},
+    "story_01_meena":       {"speaker": "kavya", "pace": 1.0, "model": "bulbul:v3"},
+    "story_02_raju":        {"speaker": "shubh", "pace": 1.0, "model": "bulbul:v3"},
+    "story_03_priya":       {"speaker": "kavya", "pace": 1.0, "model": "bulbul:v3"},
+    "story_04_shankarappa": {"speaker": "shubh", "pace": 1.0, "model": "bulbul:v3"},
+    "story_05_lakshmi":     {"speaker": "kavya", "pace": 1.0, "model": "bulbul:v3"},
+    "story_06_arun":        {"speaker": "shubh", "pace": 1.0, "model": "bulbul:v3"},
+    "story_07_saraswati":   {"speaker": "kavya", "pace": 1.0, "model": "bulbul:v3"},
+    "story_08_vinay":       {"speaker": "shubh", "pace": 1.0, "model": "bulbul:v3"},
+    "story_09_fatima":      {"speaker": "kavya", "pace": 1.0, "model": "bulbul:v3"},
+    "story_10_mahesh":      {"speaker": "shubh", "pace": 1.0, "model": "bulbul:v3"},
 }
 
 # Celebrities: third-person documentary narration using Bulbul v3 (shubh/kavya)
@@ -56,7 +56,7 @@ CELEB_VOICE = {
 }
 
 # --- Defaults ---
-DEFAULT_TTS_PACE = 0.85
+DEFAULT_TTS_PACE = 1.0
 DEFAULT_TTS_PITCH = 0.0
 DEFAULT_TTS_LOUDNESS = 1.0
 

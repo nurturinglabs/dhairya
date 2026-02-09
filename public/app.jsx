@@ -21,6 +21,36 @@ const STORY_META = {
   celeb_03_sonali:        { gradient: ["#FF8FA0", "#E06080"], emoji: "\uD83C\uDF1F" },
   celeb_04_manisha:       { gradient: ["#C8A0E0", "#A070C0"], emoji: "\uD83C\uDFAC" },
   celeb_05_gautami:       { gradient: ["#F0C878", "#D8A850"], emoji: "\uD83C\uDF3C" },
+  // Bharatada Spoorthi (Indian celebrities)
+  sanjay_dutt:        { gradient: ["#D4956A", "#B87A50"], emoji: "\uD83C\uDFAC" },
+  lisa_ray:           { gradient: ["#E8A0C0", "#D080A0"], emoji: "\uD83C\uDF1F" },
+  tahira_kashyap:     { gradient: ["#F0B888", "#D89868"], emoji: "\u270D\uFE0F" },
+  rakesh_roshan:      { gradient: ["#C8A878", "#A88858"], emoji: "\uD83C\uDFAC" },
+  anurag_basu:        { gradient: ["#A8C0D8", "#88A0B8"], emoji: "\uD83C\uDFA5" },
+  mumtaz:             { gradient: ["#E8B0B0", "#D09090"], emoji: "\uD83C\uDF39" },
+  chhavi_mittal:      { gradient: ["#B8D8A8", "#98B888"], emoji: "\uD83D\uDCFA" },
+  mahima_chaudhry:    { gradient: ["#D8C0A8", "#B8A088"], emoji: "\uD83C\uDFA6" },
+  nafisa_ali:         { gradient: ["#A8D0D0", "#88B0B0"], emoji: "\uD83C\uDFCA" },
+  manisha_koirala_v2: { gradient: ["#C8A0E0", "#A880C0"], emoji: "\uD83C\uDFAC" },
+  // Vishwa Spoorthi (International celebrities)
+  robert_deniro:       { gradient: ["#8899AA", "#667788"], emoji: "\uD83C\uDFAC" },
+  michael_douglas:     { gradient: ["#A0B8A0", "#809880"], emoji: "\uD83C\uDFC6" },
+  ben_stiller:         { gradient: ["#E8C888", "#C8A868"], emoji: "\uD83D\uDE02" },
+  mark_ruffalo:        { gradient: ["#88B088", "#689068"], emoji: "\uD83D\uDCAA" },
+  christina_applegate: { gradient: ["#E0A0B8", "#C08098"], emoji: "\uD83C\uDF1F" },
+  sheryl_crow:         { gradient: ["#D8B898", "#B89878"], emoji: "\uD83C\uDFB5" },
+  fran_drescher:       { gradient: ["#C8B0D8", "#A890B8"], emoji: "\uD83D\uDCFA" },
+  robin_roberts:       { gradient: ["#A8B8D0", "#8898B0"], emoji: "\uD83D\uDCF0" },
+  sharon_osbourne:     { gradient: ["#D0A0A0", "#B08080"], emoji: "\uD83C\uDFA4" },
+  rod_stewart:         { gradient: ["#C8A080", "#A88060"], emoji: "\uD83C\uDFB6" },
+  kylie_minogue:       { gradient: ["#E0B0C8", "#C090A8"], emoji: "\uD83C\uDFB5" },
+  martina_navratilova: { gradient: ["#A0C8A0", "#80A880"], emoji: "\uD83C\uDFBE" },
+  mr_t:                { gradient: ["#B8A888", "#988868"], emoji: "\uD83D\uDCAA" },
+  kathy_bates:         { gradient: ["#C0A8C8", "#A088A8"], emoji: "\uD83C\uDFC6" },
+  sofia_vergara:       { gradient: ["#E8C0A0", "#C8A080"], emoji: "\uD83C\uDF1F" },
+  cynthia_nixon:       { gradient: ["#B0C0D0", "#90A0B0"], emoji: "\uD83C\uDFA5" },
+  jeff_bridges:        { gradient: ["#A0B0A0", "#809080"], emoji: "\uD83C\uDFAC" },
+  michael_c_hall:      { gradient: ["#B8A8B8", "#988898"], emoji: "\uD83D\uDCFA" },
 };
 
 // ─── Audio Bar Visualizer ────────────────────────────────────────
@@ -284,8 +314,8 @@ function ChatMessage({ role, text }) {
 function StoryCard({ story, onPlay, isActive }) {
   const meta = STORY_META[story.id] || { gradient: ["#ccc", "#aaa"] };
   const [c1, c2] = meta.gradient;
-  const isCeleb = story.category === "celebrity";
-  const titleLine = story.title_kannada.split("\u2014")[1] || "";
+  const isCeleb = story.category === "celebrity" || story.category === "bharatada_spoorthi" || story.category === "vishwa_spoorthi";
+  const titleLine = (story.title_kannada || "").split("\u2014")[1] || "";
 
   return (
     <div
@@ -308,8 +338,12 @@ function StoryCard({ story, onPlay, isActive }) {
               <span>{story.location}</span>
             </React.Fragment>
           )}
-          <span className="meta-dot">&middot;</span>
-          <span>{story.age} yrs</span>
+          {story.age > 0 && (
+            <React.Fragment>
+              <span className="meta-dot">&middot;</span>
+              <span>{story.age} yrs</span>
+            </React.Fragment>
+          )}
         </div>
       </div>
       <div className="story-play-btn">
@@ -337,6 +371,8 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [storyTab, setStoryTab] = useState("survivor"); // "survivor" or "celebrity"
   const [celebStories, setCelebStories] = useState([]);
+  const [bharatStories, setBharatStories] = useState([]);
+  const [vishwaStories, setVishwaStories] = useState([]);
   const [companionState, setCompanionState] = useState("ready"); // ready|recording|processing|playing|error
   const [courageStep, setCourageStep] = useState("intro"); // intro|recording|transcribing|reviewing|submitting|done
   const [courageTranscript, setCourageTranscript] = useState("");
@@ -391,14 +427,30 @@ function App() {
 
   async function loadStories() {
     try {
-      const [surRes, celRes] = await Promise.all([
+      const [surRes, celRes, bharatRes, vishwaRes] = await Promise.all([
         fetch(`${API_BASE}/api/stories/survivors`),
         fetch(`${API_BASE}/api/stories/celebrities`),
+        fetch(`${API_BASE}/api/json-stories/bharatada_spoorthi`),
+        fetch(`${API_BASE}/api/json-stories/vishwa_spoorthi`),
       ]);
       const survivors = await surRes.json();
       const celebs = await celRes.json();
       setStories(survivors);
       setCelebStories(celebs);
+      // Normalize JSON stories to match StoryCard's expected shape
+      const normalizeJson = (list) => list.map((s) => ({
+        ...s,
+        _json: true,
+        name_kannada: s.name,
+        name_english: s.name_en,
+        title_kannada: "",
+        title_english: s.name_en,
+        cancer_type: s.cancer_type_en || s.cancer_type,
+        age: 0,
+        location: s.field || "",
+      }));
+      if (bharatRes.ok) setBharatStories(normalizeJson(await bharatRes.json()));
+      if (vishwaRes.ok) setVishwaStories(normalizeJson(await vishwaRes.json()));
     } catch (err) {
       console.error("Failed to load stories:", err);
     }
@@ -414,7 +466,16 @@ function App() {
     }
   }
 
-  function goHome() {
+  function goBack() {
+    // If viewing a story, go back to story list instead of home
+    if (currentStory) {
+      setCurrentStory(null);
+      setStoryText("");
+      setIsPlaying(false);
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; }
+      return;
+    }
+    // Otherwise go home
     setMode(null);
     setSessionId(null);
     setCurrentStory(null);
@@ -729,12 +790,21 @@ function App() {
   }
 
   function getAudioUrl(story) {
+    // JSON stories use /api/json-stories/{category}/{id}/audio
+    if (story._json) {
+      return `${API_BASE}/api/json-stories/${story.category}/${story.id}/audio`;
+    }
     return `${API_BASE}/api/stories/${story.category}/${story.number}/audio`;
   }
 
   function playStory(story) {
     setCurrentStory(story);
-    loadStoryDetail(story.category, story.number);
+    // JSON stories carry story_text directly
+    if (story._json) {
+      setStoryText(story.story_text || "");
+    } else {
+      loadStoryDetail(story.category, story.number);
+    }
     if (story.has_audio && audioRef.current) {
       audioRef.current.src = getAudioUrl(story);
       audioRef.current.play();
@@ -754,12 +824,12 @@ function App() {
       <audio ref={ttsAudioRef} />
 
       {/* ── Banner with title + Sarvam branding ── */}
-      <div className="sarvam-banner" onClick={mode ? goHome : undefined}>
+      <div className="sarvam-banner" onClick={mode ? goBack : undefined}>
         <div className="banner-left">
           <h1 className="banner-title">ಧೈರ್ಯ</h1>
           <div className="banner-taglines">
-            <p className="banner-tagline">ಸಾವು ಕೂಡ ನಿಮ್ಮನ್ನ ನೋಡಿದರೆ ಹೆದರಬೇಕು.</p>
-            <p className="banner-tagline2">ನಿಮ್ಮ ಹೋರಾಟದಲ್ಲಿ ಕರ್ನಾಟಕದ ಜನತೆ ನಿಮ್ಮ ಜೊತೆ ಇದ್ದಾರೆ</p>
+            <p className="banner-tagline">ಕ್ಯಾನ್ಸರ್ ಕೂಡ ನಿಮ್ಮನ್ನ ನೋಡಿದರೆ ಹೆದರಬೇಕು.</p>
+            <p className="banner-tagline2">ನಿಮ್ಮ ಹೋರಾಟದಲ್ಲಿ ಎಲ್ಲರೂ ನಿಮ್ಮ ಜೊತೆ</p>
           </div>
         </div>
         <span className="banner-right">🎙️ Built with Sarvam AI Bulbul V3 · #TheMicIsYours</span>
@@ -768,7 +838,7 @@ function App() {
       {/* ── Back button when in mode ── */}
       {mode && (
         <div className="header">
-          <button className="back-btn" onClick={goHome}>&larr; ಹಿಂದೆ</button>
+          <button className="back-btn" onClick={goBack}>&larr; ಹಿಂದೆ</button>
         </div>
       )}
 
@@ -779,74 +849,27 @@ function App() {
             {/* Left: Purpose & about */}
             <div className="home-left">
               <div className="home-purpose">
-                <p className="purpose-lead">
-                  ಕ್ಯಾನ್ಸರ್ ಎಂದರೆ ಒಂಟಿತನ ಅಲ್ಲ. ಇಡೀ ಕರ್ನಾಟಕ ನಿಮ್ಮ ಜೊತೆ ಇದೆ.
+                <p className="purpose-text purpose-opener">
+                  ಮದುವೆಗೆ <strong>ಸಾವಿರ ಜನ</strong> ಕರೆಯುತ್ತೀವಿ. ನಾಮಕರಣಕ್ಕೆ <strong>ಐನೂರು</strong>. ಹಬ್ಬಕ್ಕೆ <strong>ಇಡೀ ಬೀದಿ</strong>.
                 </p>
-                <p className="purpose-text">
-                  ಮದುವೆಗೆ ಸಾವಿರ ಜನ ಕರೆಯುತ್ತೀರಿ. ನಾಮಕರಣಕ್ಕೆ ಐನೂರು. ಹಬ್ಬಕ್ಕೆ ಇಡೀ ಬೀದಿ. ಆದರೆ ಕ್ಯಾನ್ಸರ್ ಬಂದಾಗ? ಬಾಗಿಲು ಮುಚ್ಚಿ, ಒಬ್ಬರೇ ಅಳ್ತೀರಿ.
+                <p className="purpose-text purpose-punch">
+                  ಆದರೆ ಕ್ಯಾನ್ಸರ್ ಬಂದ್ರೆ? <span className="accent-text">ಒಬ್ಬರೇ ಅನುಭವಿಸುತ್ತೀವಿ</span>.
                 </p>
-                <p className="purpose-text purpose-highlight">
+                <p className="purpose-highlight">
                   ಯಾಕೆ?
                 </p>
                 <p className="purpose-text">
-                  ರಾತ್ರಿ ಎರಡು ಗಂಟೆ. ಆಸ್ಪತ್ರೆಯ ಬೆಡ್ ಮೇಲೆ ನಿದ್ದೆ ಬರ್ತಿಲ್ಲ. "ನಾನು ಬದುಕ್ತೀನಾ?" "ನನ್ನ ಮಕ್ಕಳ ಗತಿ ಏನು?" — ಈ ಮಾತುಗಳನ್ನ ಯಾರ ಹತ್ತಿರ ಹೇಳೋದು?
+                  ನಿಮ್ಮ ಈ ಕ್ಯಾನ್ಸರ್ ಜೊತೆಗಿನ ಹೋರಾಟದಲ್ಲಿ — ನಿಮ್ಮ ಮನೆಯವರು, ಸ್ನೇಹಿತರು, ಸಂಬಂಧಿಗಳು, ಹಿತೈಷಿಗಳು <strong>ಎಲ್ಲರೂ ಬೇಕು</strong>. ಅವರ ಪ್ರತಿ ಪ್ರಾರ್ಥನೆ, ದೊಡ್ಡವರ ಆಶೀರ್ವಾದ, ನೀವು ನಂಬೋ ಆ ಭಗವಂತನ ಕೃಪೆ — <strong>ಎಲ್ಲವೂ ಬೇಕು</strong>.
                 </p>
                 <p className="purpose-text">
-                  ಧೈರ್ಯ ಇದ್ದಾಳೆ. ಮತ್ತು ಅವಳ ಹಿಂದೆ ಇಡೀ ಕರ್ನಾಟಕ ಇದೆ.
+                  ಇವೆಲ್ಲದರ ಜೊತೆಗೆ — ನಿಮ್ಮ ಹಾಗೆ ಕ್ಯಾನ್ಸರ್ ಜೊತೆ ಹೋರಾಡ್ತಿರೋರು, ಅದನ್ನ ಗೆದ್ದಿದ್ರೋರ ಕಥೆಗಳು ನಿಮಗೆ ಬೇಕಿರೋ ಧೈರ್ಯ ಕೊಡಲಿ ಅನ್ನೋ ಒಂದು ಚಿಕ್ಕ ಪ್ರಯತ್ನ ಈ <span className="accent-text">ಧೈರ್ಯ ವೇದಿಕೆ</span>.
                 </p>
-                <p className="purpose-text">
-                  ಮೈಸೂರಿನ ಮೀನಾ ಅಕ್ಕ ತಮ್ಮ ಕಥೆ ಹೇಳಿದ್ದಾರೆ — ನೀವು ಒಬ್ಬರೇ ಅಲ್ಲ ಅಂತ. ನಮ್ಮ ಶಿವಣ್ಣ ಕಿಮೋ ನಡುವೆಯೂ ಹೋರಾಡಿ ಗೆದ್ದಿದ್ದಾರೆ. ಯುವರಾಜ್‌ಗೆ ಆರು ತಿಂಗಳು ಅಂದರು — ಆದರೂ ಗೆದ್ದ. ಒಬ್ಬ ಅಪ್ಪ ತನ್ನ ಮಗಳ ಮದುವೆ ನೋಡಲು ಹೋರಾಡಿದ. ಒಬ್ಬ ಅಮ್ಮ ಮಕ್ಕಳಿಗೋಸ್ಕರ ಎದ್ದು ನಿಂತಳು.
-                </p>
-                <p className="purpose-text">
-                  ನಿಮ್ಮ ಸಂತೋಷದಲ್ಲಿ ಜೊತೆ ನಿಲ್ಲೋರು ನಿಮ್ಮ ನೋವಿನಲ್ಲೂ ನಿಲ್ಲಬೇಕು ಅಂತ ಬಯಸ್ತಾರೆ. ಅವರಿಗೆ ಅವಕಾಶ ಕೊಡಿ. ಅವರ ಕಥೆ ಕೇಳಿ. ನಿಮ್ಮ ಕಥೆ ಹೇಳಿ. ನಿಮ್ಮ ಕುಟುಂಬದಲ್ಲಿ ಯಾರಾದರೂ ಕ್ಯಾನ್ಸರ್ ಗೆದ್ದಿದ್ದರೆ — ಆ ಕಥೆ ಹಂಚಿಕೊಳ್ಳಿ. ಅದು ಇನ್ನೊಬ್ಬರ ಕತ್ತಲೆಯ ರಾತ್ರಿಯಲ್ಲಿ ದೀಪ ಆಗಬಹುದು.
-                </p>
-                <p className="purpose-text">
-                  ಅಳಬೇಕಾ? ಅಳಿ. ಹೆದರಿಕೆ ಆಗ್ತಿದೆಯಾ? ಹೇಳಿ. ಧೈರ್ಯ ತಾಳ್ಮೆಯಿಂದ ಕೇಳುತ್ತಾಳೆ. ಇಲ್ಲಿ ಯಾವ ತೀರ್ಪೂ ಇಲ್ಲ.
+                <p className="purpose-text purpose-cta">
+                  <strong>ಬನ್ನಿ</strong>. <strong>ನಿಮ್ಮ ಕಥೆ ಹೇಳಿ</strong>. <strong>ಬೇರೆಯವರ ಕಥೆ ಕೇಳಿ</strong>.
                 </p>
                 <p className="purpose-text purpose-closing">
-                  ಒಂದು ಕಥೆ ಕೇಳಿದರೆ ಕಣ್ಣೀರು ಬರುತ್ತೆ. ಹತ್ತು ಕಥೆ ಕೇಳಿದರೆ ಧೈರ್ಯ ಬರುತ್ತೆ. ಇಡೀ ಕರ್ನಾಟಕ ಸೇರಿದರೆ — ಕ್ಯಾನ್ಸರ್ ಗೆ ಸೋಲು ಬರುತ್ತೆ.
+                  ನಿಮ್ಮ ಧೈರ್ಯ ನೋಡಿ ಕ್ಯಾನ್ಸರ್ ಕೂಡ ನಿಮ್ಮನ್ನ ಬಿಟ್ಟು <span className="accent-text">ಓಡಿ ಹೋಗ್ಲಿ</span>...
                 </p>
-
-                <div className="purpose-divider"></div>
-
-                <ul className="purpose-features">
-                  <li>
-                    <span className="feature-icon">&#x1F399;</span>
-                    <div>
-                      <strong>ಕನ್ನಡ ಧ್ವನಿಯಲ್ಲಿ ಕಥೆಗಳು</strong>
-                      <span className="feature-detail">ಮೈಸೂರು, ಧಾರವಾಡ, ಬೆಂಗಳೂರು, ಮಂಡ್ಯ ಮತ್ತು ಇತರ ಊರುಗಳಿಂದ</span>
-                    </div>
-                  </li>
-                  <li>
-                    <span className="feature-icon">&#x1F91D;</span>
-                    <div>
-                      <strong>AI ಜೊತೆಗಾರ</strong>
-                      <span className="feature-detail">24/7 ಲಭ್ಯ — ರಾತ್ರಿಯ ಒಂಟಿತನದಲ್ಲೂ ನಿಮ್ಮ ಜೊತೆಗಿದೆ</span>
-                    </div>
-                  </li>
-                  <li>
-                    <span className="feature-icon">&#x1F512;</span>
-                    <div>
-                      <strong>ಸಂಪೂರ್ಣ ಖಾಸಗಿ</strong>
-                      <span className="feature-detail">ಯಾವುದೇ ಹೆಸರು, ಫೋನ್ ನಂಬರ್, ಮಾಹಿತಿ ಕೇಳುವುದಿಲ್ಲ</span>
-                    </div>
-                  </li>
-                  <li>
-                    <span className="feature-icon">&#x1F3AF;</span>
-                    <div>
-                      <strong>Sarvam AI ತಂತ್ರಜ್ಞಾನ</strong>
-                      <span className="feature-detail">ಭಾರತೀಯ ಭಾಷೆಗಳಿಗಾಗಿ ನಿರ್ಮಿಸಿದ AI — ನಿಮ್ಮ ಭಾಷೆ ಅರ್ಥ ಆಗುತ್ತದೆ</span>
-                    </div>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="home-stats">
-                <div className="stat"><span className="stat-num">15</span><span className="stat-label">ಕಥೆಗಳು</span></div>
-                <div className="stat-divider"></div>
-                <div className="stat"><span className="stat-num">3</span><span className="stat-label">ಅನುಭವಗಳು</span></div>
-                <div className="stat-divider"></div>
-                <div className="stat"><span className="stat-num">&infin;</span><span className="stat-label">ಧೈರ್ಯ</span></div>
               </div>
             </div>
 
@@ -875,6 +898,48 @@ function App() {
                   onClick={() => selectMode("courage")}
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Bottom: Features + Stats below experience tiles */}
+          <div className="home-bottom">
+            <ul className="purpose-features">
+              <li>
+                <span className="feature-icon">&#x1F399;</span>
+                <div>
+                  <strong>ಕನ್ನಡ ಧ್ವನಿಯಲ್ಲಿ ಕಥೆಗಳು</strong>
+                  <span className="feature-detail">ಮೈಸೂರು, ಧಾರವಾಡ, ಬೆಂಗಳೂರು, ಮಂಡ್ಯ ಮತ್ತು ಇತರ ಊರುಗಳಿಂದ</span>
+                </div>
+              </li>
+              <li>
+                <span className="feature-icon">&#x1F91D;</span>
+                <div>
+                  <strong>AI ಜೊತೆಗಾರ್ತಿ</strong>
+                  <span className="feature-detail">24/7 ಲಭ್ಯ — ರಾತ್ರಿಯ ಒಂಟಿತನದಲ್ಲೂ ನಿಮ್ಮ ಜೊತೆ</span>
+                </div>
+              </li>
+              <li>
+                <span className="feature-icon">&#x1F512;</span>
+                <div>
+                  <strong>ಸಂಪೂರ್ಣ ಖಾಸಗಿ</strong>
+                  <span className="feature-detail">ಯಾವುದೇ ಹೆಸರು, ಫೋನ್ ನಂಬರ್, ಮಾಹಿತಿ ಕೇಳುವುದಿಲ್ಲ</span>
+                </div>
+              </li>
+              <li>
+                <span className="feature-icon">&#x1F3AF;</span>
+                <div>
+                  <strong>Sarvam AI ತಂತ್ರಜ್ಞಾನ</strong>
+                  <span className="feature-detail">ಭಾರತೀಯ ಭಾಷೆಗಳಿಗಾಗಿ ನಿರ್ಮಿಸಿದ AI — ನಿಮ್ಮ ಭಾಷೆ ಅರ್ಥ ಆಗುತ್ತದೆ</span>
+                </div>
+              </li>
+            </ul>
+
+            <div className="home-stats">
+              <div className="stat"><span className="stat-num">43</span><span className="stat-label">ಕಥೆಗಳು</span></div>
+              <div className="stat-divider"></div>
+              <div className="stat"><span className="stat-num">3</span><span className="stat-label">ಅನುಭವಗಳು</span></div>
+              <div className="stat-divider"></div>
+              <div className="stat"><span className="stat-num">&infin;</span><span className="stat-label">ಧೈರ್ಯ</span></div>
             </div>
           </div>
         </div>
@@ -944,11 +1009,18 @@ function App() {
                   <span className="tab-sub">Inspired Stories</span>
                 </button>
                 <button
-                  className={`story-tab ${storyTab === "celebrity" ? "active" : ""}`}
-                  onClick={() => setStoryTab("celebrity")}
+                  className={`story-tab ${storyTab === "bharat" ? "active" : ""}`}
+                  onClick={() => setStoryTab("bharat")}
                 >
-                  ಸ್ಫೂರ್ತಿ ಕಥೆ
-                  <span className="tab-sub">Celebrity Stories</span>
+                  {"\u0CAD\u0CBE\u0CB0\u0CA4\u0CA6 \u0CB8\u0CCD\u0CAB\u0CC2\u0CB0\u0CCD\u0CA4\u0CBF"}
+                  <span className="tab-sub">Indian Inspiration</span>
+                </button>
+                <button
+                  className={`story-tab ${storyTab === "vishwa" ? "active" : ""}`}
+                  onClick={() => setStoryTab("vishwa")}
+                >
+                  {"\u0CB5\u0CBF\u0CB6\u0CCD\u0CB5 \u0CB8\u0CCD\u0CAB\u0CC2\u0CB0\u0CCD\u0CA4\u0CBF"}
+                  <span className="tab-sub">World Inspiration</span>
                 </button>
                 <button
                   className={`story-tab ${storyTab === "community" ? "active" : ""}`}
@@ -970,11 +1042,22 @@ function App() {
                 </React.Fragment>
               )}
 
-              {storyTab === "celebrity" && (
+              {storyTab === "bharat" && (
                 <React.Fragment>
-                  <p className="stories-disclaimer">ನಿಜವಾದ ಕಥೆಗಳು &middot; Real celebrity cancer journeys</p>
+                  <p className="stories-disclaimer">{"\u0CAD\u0CBE\u0CB0\u0CA4\u0CA6 \u0CA4\u0CBE\u0CB0\u0CC6\u0CAF\u0CB0 \u0C95\u0CCD\u0CAF\u0CBE\u0CA8\u0CCD\u0CB8\u0CB0\u0CCD \u0C97\u0CC6\u0CB2\u0CC1\u0CB5\u0CBF\u0CA8 \u0C95\u0CA5\u0CC6\u0C97\u0CB3\u0CC1"} &middot; Indian cancer survivors</p>
                   <div className="story-list">
-                    {celebStories.map((s) => (
+                    {[...celebStories, ...bharatStories].map((s) => (
+                      <StoryCard key={s.id} story={s} onPlay={playStory} isActive={currentStory?.id === s.id} />
+                    ))}
+                  </div>
+                </React.Fragment>
+              )}
+
+              {storyTab === "vishwa" && (
+                <React.Fragment>
+                  <p className="stories-disclaimer">{"\u0CB5\u0CBF\u0CB6\u0CCD\u0CB5\u0CA6 \u0CA4\u0CBE\u0CB0\u0CC6\u0CAF\u0CB0 \u0C95\u0CCD\u0CAF\u0CBE\u0CA8\u0CCD\u0CB8\u0CB0\u0CCD \u0C97\u0CC6\u0CB2\u0CC1\u0CB5\u0CBF\u0CA8 \u0C95\u0CA5\u0CC6\u0C97\u0CB3\u0CC1"} &middot; International cancer survivors</p>
+                  <div className="story-list">
+                    {vishwaStories.map((s) => (
                       <StoryCard key={s.id} story={s} onPlay={playStory} isActive={currentStory?.id === s.id} />
                     ))}
                   </div>
@@ -1226,7 +1309,7 @@ function App() {
                 <button className="courage-redo-btn" onClick={() => { setCourageStep("intro"); setCourageTranscript(""); setCourageAudioBlob(null); }}>
                   {"\uD83D\uDD04 \u0CAE\u0CA4\u0CCD\u0CA4\u0CC6 \u0CB9\u0CC7\u0CB3\u0CBF"}
                 </button>
-                <button className="courage-cancel-btn" onClick={goHome}>
+                <button className="courage-cancel-btn" onClick={goBack}>
                   {"\u2716 \u0CB0\u0CA6\u0CCD\u0CA6\u0CC1"}
                 </button>
               </div>
@@ -1248,7 +1331,7 @@ function App() {
               <h3>{"\u0CA7\u0CA8\u0CCD\u0CAF\u0CB5\u0CBE\u0CA6\u0C97\u0CB3\u0CC1."}</h3>
               <p>{"\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0C95\u0CA5\u0CC6 \u0CB8\u0CC7\u0CB5\u0CCD \u0C86\u0C97\u0CBF\u0CA6\u0CC6."}</p>
               <p className="courage-done-sub">{"\u0CA8\u0CBF\u0CAE\u0CCD\u0CAE \u0CA7\u0CCC\u0CA8\u0CBF \u0C87\u0CA8\u0CCD\u0CA8\u0CCA\u0CAC\u0CCD\u0CAC\u0CB0 \u0C95\u0CA4\u0CCD\u0CA4\u0CB2\u0CC6\u0CAF \u0CB0\u0CBE\u0CA4\u0CCD\u0CB0\u0CBF\u0CAF\u0CB2\u0CCD\u0CB2\u0CBF \u0CA6\u0CC0\u0CAA \u0C86\u0C97\u0CC1\u0CA4\u0CCD\u0CA4\u0CC6."}</p>
-              <button className="courage-home-btn" onClick={goHome}>
+              <button className="courage-home-btn" onClick={goBack}>
                 {"\u2190 \u0CB9\u0CBF\u0C82\u0CA6\u0CC6 \u0CB9\u0CCB\u0C97\u0CBF"}
               </button>
             </div>

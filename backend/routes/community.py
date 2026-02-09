@@ -69,7 +69,7 @@ async def submit_story(
     audio_b64 = None
     try:
         response = client.text_to_speech.convert(
-            text=transcript[:900],
+            text=transcript[:400],
             target_language_code=LANGUAGE_CODE,
             model=TTS_MODEL,
             speaker=SPEAKERS["female"],

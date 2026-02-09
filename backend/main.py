@@ -22,6 +22,7 @@ from backend.models import HealthResponse
 from backend.routes.stories import router as stories_router
 from backend.routes.sessions import router as sessions_router
 from backend.routes.community import router as community_router
+from backend.routes.json_stories import router as json_stories_router
 
 app = FastAPI(
     title="Dhairya 2.0 API",
@@ -42,6 +43,7 @@ app.add_middleware(
 app.include_router(stories_router)
 app.include_router(sessions_router)
 app.include_router(community_router)
+app.include_router(json_stories_router)
 
 
 @app.get("/")

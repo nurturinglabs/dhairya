@@ -38,10 +38,13 @@ def _get_client():
 
 
 def _synthesize_response(client, text: str) -> str | None:
-    """Convert response text to speech using Bulbul V3, return base64-encoded audio."""
+    """Convert response text to speech using Bulbul V3, return base64-encoded audio.
+
+    Limits to 400 chars to keep TTS fast (matching pre-gen story chunking).
+    """
     try:
         response = client.text_to_speech.convert(
-            text=text[:900],
+            text=text[:400],
             target_language_code=LANGUAGE_CODE,
             model=TTS_MODEL,
             speaker=SPEAKERS["female"],
