@@ -880,7 +880,7 @@ function App() {
                   label="ಕಥೆ ಕೇಳಿ"
                   sublabel="Listen to Stories"
                   icon={<svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="13" fill="#7BA68D" opacity="0.15"/><path d="M9 7v14l12-7z" fill="#7BA68D"/></svg>}
-                  desc="15 stories — survivors + celebrity inspiration"
+                  desc="43 stories — survivors + celebrity inspiration"
                   onClick={() => selectMode("story")}
                 />
                 <ModeButton
